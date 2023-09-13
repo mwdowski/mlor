@@ -1,6 +1,8 @@
 use lexer::Lexer;
+use parser::Parser;
 
 mod lexer;
+mod parser;
 
 fn main() {
     let string = "03 + 45*5 - (653554445/8)";
@@ -9,4 +11,5 @@ fn main() {
     for token in lexer {
         println!("{0:?} ", token);
     }
+
 }
