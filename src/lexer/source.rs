@@ -1,34 +1,52 @@
-use std::str::FromStr;
+use std::iter::Peekable;
 
-pub struct StringLexerSource {
-    string: String,
-    i: usize,
+pub trait CharactersSource {
+    fn next(&mut self) -> Option<char>;
+    fn peek(&mut self) -> Option<&char>;
 }
 
-impl StringLexerSource {
-    pub fn new(string: &str) -> Self {
-        StringLexerSource {
-            string: String::from_str(string).unwrap(),
-            i: 0,
-        }
+pub struct StringSource {
+    source: Peekable<<Vec<char> as IntoIterator>::IntoIter>
+}
+
+impl StringSource {
+    pub fn from_str(string: &str) -> Self {
+        let s = string.to_string();
+        let v = s.chars().into_iter().collect::<Vec<char>>().into_iter();
+        Self { source: v.peekable()}
     }
 }
 
-impl Iterator for StringLexerSource {
-    type Item = char;
+impl CharactersSource for StringSource {
+    fn next(&mut self) -> Option<char> {
+        self.source.next()
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let res = self.string.chars().nth(self.i);
-        self.i += 1;
-        res
+    fn peek(&mut self) -> Option<&char> {
+        self.source.peek()
     }
 }
 
 #[test]
-fn string_lexer_source() {
-    let mut source = StringLexerSource::new("abc");
-    assert_eq!(source.next(), Some('a'));
-    assert_eq!(source.next(), Some('b'));
-    assert_eq!(source.next(), Some('c'));
-    assert_eq!(source.next(), None);
+fn string_source_from_str() {
+    let mut string_source = StringSource::from_str("abc");
+    assert_eq!(string_source.source.next().unwrap(), 'a');
+    assert_eq!(string_source.source.next().unwrap(), 'b');
+    assert_eq!(string_source.source.next().unwrap(), 'c');
+    assert_eq!(string_source.source.next(), None);
+}
+
+#[test]
+fn string_source_next() {
+    let mut string_source = StringSource::from_str("abc");
+    assert_eq!(string_source.next().unwrap(), 'a');
+    assert_eq!(string_source.next().unwrap(), 'b');
+    assert_eq!(string_source.next().unwrap(), 'c');
+    assert_eq!(string_source.next(), None);
+}
+
+#[test]
+fn string_source_peek() {
+    let mut string_source = StringSource::from_str("abcd");
+    assert_eq!(string_source.peek().unwrap(), &'a');
 }
