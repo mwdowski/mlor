@@ -1,65 +1,73 @@
-pub struct SyntaxTreeNode {
-    pub node: Box<dyn SyntaxTreeNodeTrait>,
+use crate::lexer::token::{Token, TokenKind};
+
+pub struct InvalidExpressionNode {
+    pub expected: TokenKind,
+    pub got: Option<Token>,
 }
 
-pub trait SyntaxTreeNodeTrait {
-    fn to_syntax_tree_node(self) -> SyntaxTreeNode;
-    fn evaluate(&self) -> i32;
-}
-
-pub struct AddOperatorNode {
-    left: SyntaxTreeNode,
-    right: SyntaxTreeNode,
-}
-
-impl SyntaxTreeNodeTrait for AddOperatorNode {
-    fn to_syntax_tree_node(self) -> SyntaxTreeNode {
-        todo!()
-    }
-
-    fn evaluate(&self) -> i32 {
-        todo!()
+impl InvalidExpressionNode {
+    pub fn describe(&self) -> String {
+        if let Some(token) = &self.got {
+            return format!("Expected {:?}, got: {:?} ({:?}).", self.expected, token.kind, token.start_position);
+        }
+        else {
+            return format!("Unexpected file end - expected {:?}.", self.expected);
+        }
     }
 }
 
-pub struct MulOperatorNode {
-    left: SyntaxTreeNode,
-    right: SyntaxTreeNode,
+pub enum ExpressionNode {
+    SingleTermNode(TermNode),
+    AdditionTermNode {
+        left: TermNode,
+        right: Box<ExpressionNode>,
+    },
+    SubstractionTermNode {
+        left: TermNode,
+        right: Box<ExpressionNode>,
+    },
 }
 
-impl SyntaxTreeNodeTrait for MulOperatorNode {
-    fn to_syntax_tree_node(self) -> SyntaxTreeNode {
-        todo!()
-    }
-
-    fn evaluate(&self) -> i32 {
-        todo!()
-    }
-}
-
-pub struct IntLiteralNode {
-    pub value: i32,
-}
-
-impl SyntaxTreeNodeTrait for IntLiteralNode {
-    fn to_syntax_tree_node(self) -> SyntaxTreeNode {
-        SyntaxTreeNode { node: Box::new(self) as Box<dyn SyntaxTreeNodeTrait> }
-    }
-
-    fn evaluate(&self) -> i32 {
-        self.value
+impl ExpressionNode {
+    pub fn evaluate(&self) -> i32 {
+        match self {
+            Self::SingleTermNode(t) => t.evaluate(),
+            Self::AdditionTermNode { left, right } => left.evaluate() + right.evaluate(),
+            Self::SubstractionTermNode { left, right } => left.evaluate() - right.evaluate(),
+        }
     }
 }
 
-pub struct BrokenNode {
+pub enum TermNode {
+    SingleFactorNode(FactorNode),
+    MultiplicationFactorNode {
+        left: FactorNode,
+        right: Box<TermNode>,
+    },
+    DivisionFactorNode {
+        left: FactorNode,
+        right: Box<TermNode>,
+    },
 }
 
-impl SyntaxTreeNodeTrait for BrokenNode {
-    fn to_syntax_tree_node(self) -> SyntaxTreeNode {
-        todo!()
+impl TermNode {
+    pub fn evaluate(&self) -> i32 {
+        match self {
+            Self::SingleFactorNode(t) => t.evaluate(),
+            Self::MultiplicationFactorNode { left, right } => left.evaluate() * right.evaluate(),
+            Self::DivisionFactorNode { left, right } => left.evaluate() / right.evaluate(),
+        }
     }
+}
 
-    fn evaluate(&self) -> i32 {
-        todo!()
+pub enum FactorNode {
+    LiteralNode(i32),
+}
+
+impl FactorNode {
+    pub fn evaluate(&self) -> i32 {
+        match self {
+            Self::LiteralNode(value) => value.clone(),
+        }
     }
 }
