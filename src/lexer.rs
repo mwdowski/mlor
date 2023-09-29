@@ -1,6 +1,5 @@
-use crate::lexer::token::TokenKind;
-
 use self::{source::*, token::*};
+use crate::lexer::token::TokenKind;
 
 pub mod source;
 pub mod token;
@@ -54,10 +53,37 @@ impl<TSource: CharactersSource> Lexer<TSource> {
             Some(character) => match character {
                 '+' | '-' | '*' | '/' => self.get_operator(),
                 '0'..='9' => self.get_int_literal(),
+                '(' | ')' => self.get_paren(),
                 _ => self.get_unrecognised(),
             },
             None => None,
         }
+    }
+
+    fn get_paren(&mut self) -> Option<Token> {
+        let start_position = self.current_position.clone();
+        let mut lexem_buf = Vec::<char>::new();
+        let kind = match self.characters.peek() {
+            Some(_) => {
+                let c = self.advance_character().unwrap();
+                lexem_buf.push(c.clone());
+                match c {
+                    '(' => TokenKind::ParenthesisOpen,
+                    ')' => TokenKind::ParenthesisClose,
+                    _ => TokenKind::Unrecognized,
+                }
+            }
+            None => return None,
+        };
+        let end_position = self.current_position.clone();
+        let lexem = lexem_buf.into_iter().collect::<String>();
+
+        Some(Token {
+            start_position,
+            end_position,
+            lexem,
+            kind,
+        })
     }
 
     fn get_unrecognised(&mut self) -> Option<Token> {
@@ -71,7 +97,7 @@ impl<TSource: CharactersSource> Lexer<TSource> {
                     c if c.is_whitespace() => {
                         break;
                     }
-                    '+' | '-' | '*' | '/' => {
+                    '+' | '-' | '*' | '/' | '(' | ')' => {
                         break;
                     }
                     _ => {
@@ -137,11 +163,12 @@ impl<TSource: CharactersSource> Lexer<TSource> {
             match self.characters.peek() {
                 Some(c) => match c {
                     '0' => {
-                        // first digit can't be zero
-                        if lexem_buf.len() == 0 {
+                        lexem_buf.push(self.advance_character().unwrap());
+
+                        // first digit can't be zero, unless it's a single zero
+                        if lexem_buf.len() == 1 && self.characters.peek().is_some_and(|c| c.is_ascii_alphanumeric()) {
                             kind = TokenKind::Unrecognized;
                         }
-                        lexem_buf.push(self.advance_character().unwrap());
                     }
                     '1'..='9' => {
                         lexem_buf.push(self.advance_character().unwrap());
@@ -149,7 +176,7 @@ impl<TSource: CharactersSource> Lexer<TSource> {
                     c if c.is_whitespace() => {
                         break;
                     }
-                    '+' | '-' | '*' | '/' => {
+                    '+' | '-' | '*' | '/' | '(' | ')' => {
                         break;
                     }
                     _ => {
@@ -215,7 +242,7 @@ fn from_str() {
 
 #[test]
 fn get_int_literal() {
-    let lexer = Lexer::from_str("123 0423 9000000000 65a2\n34");
+    let lexer = Lexer::from_str("123 0423 9000000000 65a2\n34 0");
     let mut tokens = lexer.into_tokens();
 
     let first = tokens.next().unwrap();
@@ -247,6 +274,12 @@ fn get_int_literal() {
     assert_eq!(fifth.start_position, Position { column: 1, row: 2 });
     assert_eq!(fifth.end_position, Position { column: 3, row: 2 });
     assert_eq!(fifth.lexem, format!("34"));
+
+    let sixth = tokens.next().unwrap();
+    assert_eq!(sixth.kind, TokenKind::IntLiteral(0));
+    assert_eq!(sixth.start_position, Position { column: 4, row: 2 });
+    assert_eq!(sixth.end_position, Position { column: 5, row: 2 });
+    assert_eq!(sixth.lexem, format!("0"));
 
     assert_eq!(tokens.next(), None);
 }
@@ -287,7 +320,7 @@ fn get_operator() {
 fn get_unrecognised() {
     let lexer = Lexer::from_str("a44-W");
     let mut tokens = lexer.into_tokens();
-    
+
     let first = tokens.next().unwrap();
     assert_eq!(first.kind, TokenKind::Unrecognized);
     assert_eq!(first.start_position, Position { column: 1, row: 1 });
@@ -310,8 +343,34 @@ fn get_unrecognised() {
 }
 
 #[test]
+fn get_paren() {
+    let lexer = Lexer::from_str("() (");
+    let mut tokens = lexer.into_tokens();
+
+    let first = tokens.next().unwrap();
+    assert_eq!(first.kind, TokenKind::ParenthesisOpen);
+    assert_eq!(first.start_position, Position { column: 1, row: 1 });
+    assert_eq!(first.end_position, Position { column: 2, row: 1 });
+    assert_eq!(first.lexem, format!("("));
+
+    let second = tokens.next().unwrap();
+    assert_eq!(second.kind, TokenKind::ParenthesisClose);
+    assert_eq!(second.start_position, Position { column: 2, row: 1 });
+    assert_eq!(second.end_position, Position { column: 3, row: 1 });
+    assert_eq!(second.lexem, format!(")"));
+
+    let third = tokens.next().unwrap();
+    assert_eq!(third.kind, TokenKind::ParenthesisOpen);
+    assert_eq!(third.start_position, Position { column: 4, row: 1 });
+    assert_eq!(third.end_position, Position { column: 5, row: 1 });
+    assert_eq!(third.lexem, format!("("));
+
+    assert_eq!(tokens.next(), None);
+}
+
+#[test]
 fn into_tokens() {
-    let lexer = Lexer::from_str("2*3 - 5");
+    let lexer = Lexer::from_str("2*3 - (5+2)");
     let mut tokens = lexer.into_tokens();
 
     let first = tokens.next().unwrap();
@@ -339,10 +398,34 @@ fn into_tokens() {
     assert_eq!(fourth.lexem, format!("-"));
 
     let fourth = tokens.next().unwrap();
-    assert_eq!(fourth.kind, TokenKind::IntLiteral(5));
+    assert_eq!(fourth.kind, TokenKind::ParenthesisOpen);
     assert_eq!(fourth.start_position, Position { column: 7, row: 1 });
     assert_eq!(fourth.end_position, Position { column: 8, row: 1 });
-    assert_eq!(fourth.lexem, format!("5"));
+    assert_eq!(fourth.lexem, format!("("));
+
+    let fifth = tokens.next().unwrap();
+    assert_eq!(fifth.kind, TokenKind::IntLiteral(5));
+    assert_eq!(fifth.start_position, Position { column: 8, row: 1 });
+    assert_eq!(fifth.end_position, Position { column: 9, row: 1 });
+    assert_eq!(fifth.lexem, format!("5"));
+
+    let sixth = tokens.next().unwrap();
+    assert_eq!(sixth.kind, TokenKind::AddOperator);
+    assert_eq!(sixth.start_position, Position { column: 9, row: 1 });
+    assert_eq!(sixth.end_position, Position { column: 10, row: 1 });
+    assert_eq!(sixth.lexem, format!("+"));
+
+    let seventh = tokens.next().unwrap();
+    assert_eq!(seventh.kind, TokenKind::IntLiteral(2));
+    assert_eq!(seventh.start_position, Position { column: 10, row: 1 });
+    assert_eq!(seventh.end_position, Position { column: 11, row: 1 });
+    assert_eq!(seventh.lexem, format!("2"));
+
+    let eigth = tokens.next().unwrap();
+    assert_eq!(eigth.kind, TokenKind::ParenthesisClose);
+    assert_eq!(eigth.start_position, Position { column: 11, row: 1 });
+    assert_eq!(eigth.end_position, Position { column: 12, row: 1 });
+    assert_eq!(eigth.lexem, format!(")"));
 
     assert_eq!(tokens.next(), None);
 }

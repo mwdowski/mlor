@@ -62,12 +62,14 @@ impl TermNode {
 
 pub enum FactorNode {
     LiteralNode(i32),
+    ExpressionNode(Box<ExpressionNode>),
 }
 
 impl FactorNode {
     pub fn evaluate(&self) -> i32 {
         match self {
             Self::LiteralNode(value) => value.clone(),
+            Self::ExpressionNode(exp) => exp.evaluate(),
         }
     }
 }

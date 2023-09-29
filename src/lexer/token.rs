@@ -19,5 +19,8 @@ pub enum TokenKind {
     SubOperator,
     MulOperator,
     DivOperator,
-    Unrecognized
+    ParenthesisOpen,
+    ParenthesisClose,
+    Unrecognized,
+    EOF
 }

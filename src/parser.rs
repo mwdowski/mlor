@@ -1,4 +1,4 @@
-use std::{iter::Peekable};
+use std::iter::Peekable;
 
 use crate::lexer::{
     source::CharactersSource,
@@ -21,10 +21,18 @@ impl<TSource: CharactersSource> Parser<TSource> {
         }
     }
 
-    pub fn match_expression(&mut self) -> Result<ExpressionNode, InvalidExpressionNode> {
+    pub fn parse(&mut self) -> Result<ExpressionNode, InvalidExpressionNode> {
+        let result = self.match_expression()?;
+        match self.tokens.peek() {
+            None => Ok(result),
+            Some(token) => Err(InvalidExpressionNode { expected: TokenKind::EOF, got: Some(token.clone()) })
+        }
+    }
+
+    fn match_expression(&mut self) -> Result<ExpressionNode, InvalidExpressionNode> {
         let left = match self.tokens.peek() {
             Some(Token {
-                kind: TokenKind::IntLiteral(_),
+                kind: TokenKind::IntLiteral(_) | TokenKind::ParenthesisOpen,
                 ..
             }) => self.match_term(),
             Some(token) => {
@@ -38,6 +46,10 @@ impl<TSource: CharactersSource> Parser<TSource> {
                 got: None,
             }),
         }?;
+
+        if let Some(&Token {kind: TokenKind::ParenthesisClose, ..}) = self.tokens.peek() {
+            return Ok(ExpressionNode::SingleTermNode(left));
+        }
 
         match self.tokens.next() {
             Some(token) => match token.kind {
@@ -63,7 +75,7 @@ impl<TSource: CharactersSource> Parser<TSource> {
     fn match_term(&mut self) -> Result<TermNode, InvalidExpressionNode> {
         let left = match self.tokens.peek() {
             Some(Token {
-                kind: TokenKind::IntLiteral(_),
+                kind: TokenKind::IntLiteral(_) | TokenKind::ParenthesisOpen,
                 ..
             }) => self.match_factor(),
             Some(token) => {
@@ -96,8 +108,9 @@ impl<TSource: CharactersSource> Parser<TSource> {
                 }
                 TokenKind::AddOperator => Ok(TermNode::SingleFactorNode(left)),
                 TokenKind::SubOperator => Ok(TermNode::SingleFactorNode(left)),
+                TokenKind::ParenthesisClose => Ok(TermNode::SingleFactorNode(left)),
                 _ => Err(InvalidExpressionNode {
-                    expected: TokenKind::AddOperator,
+                    expected: TokenKind::MulOperator,
                     got: Some(token.clone()),
                 }),
             },
@@ -109,6 +122,16 @@ impl<TSource: CharactersSource> Parser<TSource> {
         match self.tokens.next() {
             Some(token) => match token.kind {
                 TokenKind::IntLiteral(value) => Ok(FactorNode::LiteralNode(value)),
+                TokenKind::ParenthesisOpen => {
+                    let exp = self.match_expression()?;
+                    match self.tokens.next() {
+                        Some(Token { kind: TokenKind::ParenthesisClose, .. }) => (),
+                        token => Err(InvalidExpressionNode {
+                            expected: TokenKind::ParenthesisClose,
+                            got: token})?,
+                        };
+                    Ok(FactorNode::ExpressionNode(Box::new(exp)))
+                }
                 _ => Err(InvalidExpressionNode {
                     expected: TokenKind::IntLiteral(0),
                     got: Some(token.clone()),
