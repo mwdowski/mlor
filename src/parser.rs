@@ -32,7 +32,7 @@ impl<TSource: CharactersSource> Parser<TSource> {
     fn match_expression(&mut self) -> Result<ExpressionNode, InvalidExpressionNode> {
         let left = match self.tokens.peek() {
             Some(Token {
-                kind: TokenKind::IntLiteral(_) | TokenKind::ParenthesisOpen,
+                kind: TokenKind::IntLiteral(_) | TokenKind::ParenthesisOpen | TokenKind::SubOperator,
                 ..
             }) => self.match_term(),
             Some(token) => {
@@ -75,7 +75,7 @@ impl<TSource: CharactersSource> Parser<TSource> {
     fn match_term(&mut self) -> Result<TermNode, InvalidExpressionNode> {
         let left = match self.tokens.peek() {
             Some(Token {
-                kind: TokenKind::IntLiteral(_) | TokenKind::ParenthesisOpen,
+                kind: TokenKind::IntLiteral(_) | TokenKind::ParenthesisOpen | TokenKind::SubOperator,
                 ..
             }) => self.match_factor(),
             Some(token) => {
@@ -131,7 +131,8 @@ impl<TSource: CharactersSource> Parser<TSource> {
                             got: token})?,
                         };
                     Ok(FactorNode::ExpressionNode(Box::new(exp)))
-                }
+                },
+                TokenKind::SubOperator => Ok(FactorNode::NegativeExpressionNode(Box::new(self.match_factor()?))),
                 _ => Err(InvalidExpressionNode {
                     expected: TokenKind::IntLiteral(0),
                     got: Some(token.clone()),

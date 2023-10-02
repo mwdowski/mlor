@@ -63,6 +63,7 @@ impl TermNode {
 pub enum FactorNode {
     LiteralNode(i32),
     ExpressionNode(Box<ExpressionNode>),
+    NegativeExpressionNode(Box<FactorNode>),
 }
 
 impl FactorNode {
@@ -70,6 +71,7 @@ impl FactorNode {
         match self {
             Self::LiteralNode(value) => value.clone(),
             Self::ExpressionNode(exp) => exp.evaluate(),
+            Self::NegativeExpressionNode(exp) => -exp.evaluate(),
         }
     }
 }
